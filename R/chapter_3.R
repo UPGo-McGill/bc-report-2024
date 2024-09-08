@@ -5,6 +5,8 @@ monthly <- qread("output/monthly.qs", nthreads = availableCores())
 qload("output/ia.qsm", nthreads = availableCores())
 CSD_with_PR <- qread("output/CSD_with_PR.qs")
 CSD <- qread("output/CSD.qs")
+DA_union <- qread("output/DA_union.qs", nthreads = availableCores())
+water <- qread("output/water.qs", nthreads = availableCores())
 
 
 # Prepare data ------------------------------------------------------------
@@ -67,6 +69,7 @@ freh_trend_table |>
 freh_trend_table |> 
   filter(name == "non_steady")
 
+
 # Figure 3.1 Overall listing trajectories  --------------------------------
 
 fig_3_1 <- 
@@ -90,7 +93,7 @@ fig_3_1 <-
 ggsave("output/figure_3_1.png", fig_3_1, width = 4, height = 8, units = "in")
 
 
-# Figure 3.2 Listing trajectories by activity -----------------------------
+# Highly active listings have been delisted more frequently ---------------
 
 activity_trend_table <- 
   monthly_ia |> 
@@ -112,6 +115,18 @@ activity_trend_table <-
   mutate(month = month + 1) |> 
   mutate(index = n / n[month == yearmonth("2024-02")], .by = R_cat)
 
+activity_trend_table |> 
+  filter(R_cat == "< 120")
+
+activity_trend_table |> 
+  filter(R_cat == ">= 240")
+
+activity_trend_table |> 
+  filter(R_cat == "< 90")
+
+
+# Figure 3.2 Listing trajectories by activity -----------------------------
+
 fig_3_2 <-
   activity_trend_table |> 
   filter(!R_cat %in% c("0", "< 90")) |> 
@@ -131,6 +146,19 @@ fig_3_2 <-
   theme(legend.position = "bottom", text = element_text(family = "Futura"))
 
 ggsave("output/figure_3_2.png", fig_3_2, width = 8, height = 4, units = "in")
+
+
+# Regional patterns in early STR compliance -------------------------------
+
+geography_trend_table <- 
+  monthly_ia |> 
+  inner_join(CSD_with_PR, by = c("city", "CSDUID")) |> 
+  filter(month >= yearmonth("2024-01"), pr_after, property_ID %in% freh_2023) |> 
+  count(month, tourism) |> 
+  mutate(month = month + 1) |> 
+  mutate(index = n / n[month == yearmonth("2024-02")], .by = tourism) |> 
+  filter(tourism != "cariboo") |> 
+  mutate_tourism()
 
 
 # Figure 3.3 Listing trajectories by geography ----------------------------
@@ -160,7 +188,8 @@ ggsave("output/figure_3_3.png", fig_3_3, width = 8, height = 4, units = "in")
 
 # Figure 3.4 Metro Van map of listing trajectories ------------------------
 
-monthly_ia |> 
+van_listing_map <- 
+  monthly_ia |> 
   inner_join(CSD_with_PR, by = c("city", "CSDUID")) |> 
   filter(month >= yearmonth("2024-01"), pr_after, property_ID %in% freh_2023) |> 
   filter(CMAUID == "59933") |> 
@@ -169,14 +198,32 @@ monthly_ia |>
   mutate(index = n / n[month == yearmonth("2024-02")], .by = c(city, CSDUID)) |> 
   # filter(month == max(month)) |> 
   inner_join(CSD) |> 
-  st_as_sf() |> 
-  ggplot() +
-  geom_sf(aes(fill = index)) +
-  facet_wrap(~month) + 
-  scale_fill_viridis_b(limits = c(0.5, 1.1), oob = scales::squish) +
-  # scale_colour_manual(values = col_palette[c(1, 3, 5)]) +
-  theme_void() +
-  theme(legend.position = "bottom", text = element_text(family = "Futura"))
+  st_as_sf()
 
-ggsave("output/figure_3_4.png", fig_3_4, width = 8, height = 4, units = "in")
+fig_3_4 <- 
+  van_listing_map |> 
+  ggplot(aes(fill = index)) +
+  geom_sf(data = DA_union, fill = "grey80", colour = "transparent") +
+  geom_sf(colour = "white") +
+  geom_sf(data = water, colour = "transparent", fill = "white") +
+  facet_wrap(~month) + 
+  scale_fill_stepsn(name = "Percentage of listings still active",
+                    label = scales::percent, limits = c(0.5, 1.1), 
+                    oob = scales::squish, colours = col_palette[c(1, 3)]) +
+  coord_sf(xlim = st_bbox(van_listing_map)[c(1, 3)], 
+           ylim = st_bbox(van_listing_map)[c(2, 4)]) +
+  theme_void() +
+  theme(legend.position = "bottom", text = element_text(family = "Futura"),
+        strip.text = element_text(face = "bold"), 
+        legend.key.width = unit(40, "pt"))
+
+ggsave("output/figure_3_4.png", fig_3_4, width = 8, height = 6, units = "in")
+
+
+# Early indications -------------------------------------------------------
+
+freh_trend_table |> 
+  filter(name %in% c("FREH_new", "FREH_steady")) |> 
+  summarize(value = sum(value), .by = month) |> 
+  mutate(index = value / value[month == yearmonth("2024-02")])
 

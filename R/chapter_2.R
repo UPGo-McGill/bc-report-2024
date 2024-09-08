@@ -453,6 +453,36 @@ did_rent_non_treated_y3 |>
     total_rent_dif / (total_rent + total_rent_dif), 0.1)) |> 
   mutate(across(mean_rent:total_rent_dif, \(x) x * (1 + avg_rent_growth) ^ 4))
 
+# Cost of repealing rules after 2024
+((did_rent_non_treated_y2 |> 
+    mutate(total_rent = rent_raw * tenant_count,
+           total_rent_dif = rent_dif * tenant_count) |> 
+    summarize(
+      mean_rent = weighted.mean(rent_raw, tenant_count),
+      mean_rent_dif = weighted.mean(rent_dif, tenant_count),
+      total_rent = sum(total_rent),
+      total_rent_dif = sum(total_rent_dif)) |> 
+    mutate(pct = scales::percent(
+      total_rent_dif / (total_rent + total_rent_dif), 0.1)) |> 
+    mutate(across(mean_rent:total_rent_dif, \(x) x * 
+                    (1 + avg_rent_growth) ^ 3)) |> 
+    pull(total_rent_dif)) +
+    (did_rent_non_treated_y3 |> 
+       mutate(total_rent = rent_raw * tenant_count,
+              total_rent_dif = rent_dif * tenant_count) |> 
+       summarize(
+         mean_rent = weighted.mean(rent_raw, tenant_count),
+         mean_rent_dif = weighted.mean(rent_dif, tenant_count),
+         total_rent = sum(total_rent),
+         total_rent_dif = sum(total_rent_dif)) |> 
+       mutate(pct = scales::percent(
+         total_rent_dif / (total_rent + total_rent_dif), 0.1)) |> 
+       mutate(across(mean_rent:total_rent_dif, \(x) x * 
+                       (1 + avg_rent_growth) ^ 4)) |> 
+       pull(total_rent_dif))) |> 
+  (\(x) x * 12)() |> 
+  scales::dollar()
+
 
 # Figure 2.4: Possible per-nbhd average rent decrease in 2025 -------------
 
