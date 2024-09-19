@@ -20,7 +20,9 @@ reg <-
   mutate(date = if_else(date >= "2023-01-02", NA, date)) |> 
   mutate(reg = if_else(is.na(date), FALSE, TRUE)) |> 
   inner_join(st_drop_geometry(cmhc_nbhd), by = c("id", "name")) |> 
-  select(-c(pop:tenant))
+  select(-c(pop:tenant)) |> 
+  mutate(name_CSD = if_else(name_CSD == "Central Okanagan West", "Kelowna",
+                            name_CSD))
 
 
 # Canada DiD --------------------------------------------------------------
